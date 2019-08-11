@@ -18,3 +18,11 @@ Even with the data and answer, the business logic is still vague. Trying to figu
 
 Code structure
 Basically follow simple Controller/Service/Model layer, demo abstraction via interface and dependency injection. Added one simple unit tests to show some basic understanding.
+
+## Q3 last try
+I get one right, guess that's the simple one.
+Trolley total (14) returned correctly.
+
+For the hard one, the return result seems wired. I checked posted data, the prices are all integer, not sure why it returns number
+with a point, decimal.
+Calculated trolley totals don't match. Provided Total: 154. Expected Total: 157.85810507501413.
