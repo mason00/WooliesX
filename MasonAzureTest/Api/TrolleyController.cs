@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using MasonAzureTest.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 
 namespace MasonAzureTest.Api
 {
@@ -12,12 +14,19 @@ namespace MasonAzureTest.Api
     [ApiController]
     public class TrolleyController : ControllerBase
     {
+        private readonly ILogger _logger;
+
+        public TrolleyController(ILogger<TrolleyController> logger)
+        {
+            _logger = logger;
+        }
         [HttpPost]
         [Route("trolleyTotal")]
         public long GetLowestTotal([FromBody] Trolly trolly)
         {
-            var price = 0;
-            var specialCount = trolly.Specials.Count();
+            var trollyString = JsonConvert.SerializeObject(trolly);
+            _logger.LogError($"Trolly: {trollyString}");
+
             var productQuantity = from product in trolly.Products
                                   join quantity in trolly.Quantities
                                   on product.Name equals quantity.Name
@@ -27,26 +36,90 @@ namespace MasonAzureTest.Api
                                       Price = product.Price,
                                       Quantity = quantity.Quantity
                                   };
-            var productQuantityArray = productQuantity.ToArray();
-            for (int i = 0; i < specialCount; i++)
-            {
-                price += MatchSpecialInProducts(trolly.Specials.Take(i).ToArray(), productQuantityArray);
-            }
-
-            return 0;
+            return MatchSpecialInProducts(trolly.Specials, trolly.Quantities, trolly.Products);
         }
 
-        private int MatchSpecialInProducts(Special[] special, ProductInTrolly[] products)
+        private long MatchSpecialInProducts(IEnumerable<Special> specials,
+            IEnumerable<TrollyQuantity> quantities,
+            IEnumerable<TrollyProduct> products)
         {
-            for (int i = 0; i < special.Length; i++)
+            long total = 0;
+
+            var orderedSpecial = specials.OrderByDescending(s => s.Total);
+
+            var foundSpecial = false;
+            Special currentSpecial = null;
+
+            foreach (var quantity in quantities)
             {
-                foreach (var item in special[i].Quantities)
+                if (quantity.Quantity == 0)
                 {
-                    var matchedProduct = products.Where(p => p.Name == item.Name && p.Quantity <= item.Quantity);
+                    foundSpecial = false;
+                    break;
+                }
+
+                if (currentSpecial == null)
+                {
+                    foreach (var special in orderedSpecial)
+                    {
+                        foundSpecial = special.Quantities.Any(s => s.Name == quantity.Name && s.Quantity <= quantity.Quantity);
+                        if (foundSpecial)
+                        {
+                            currentSpecial = special;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    foundSpecial = currentSpecial.Quantities.Any(s => s.Name == quantity.Name && s.Quantity <= quantity.Quantity);
+                    if (!foundSpecial)
+                    {
+                        break;
+                    }
                 }
             }
 
-            return 0;
+            if (foundSpecial)
+            {
+                total += currentSpecial.Total;
+                foreach (var specialQuantity in currentSpecial.Quantities)
+                {
+                    foreach (var quantity in quantities)
+                    {
+                        if (specialQuantity.Name == quantity.Name)
+                        {
+                            quantity.Quantity -= specialQuantity.Quantity;
+                            break;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                foreach (var product in products)
+                {
+                    foreach (var quantity in quantities)
+                    {
+                        if (quantity.Quantity != 0)
+                        {
+                            if (quantity.Name == product.Name)
+                            {
+                                total += product.Price * quantity.Quantity;
+                                quantity.Quantity = 0;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (quantities.Any(q => q.Quantity != 0))
+            {
+                total += MatchSpecialInProducts(specials, quantities, products);
+            }
+
+            return total;
         }
     }
 }
