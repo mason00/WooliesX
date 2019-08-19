@@ -22,7 +22,7 @@ namespace MasonAzureTest.Api
         }
         [HttpPost]
         [Route("trolleyTotal")]
-        public long GetLowestTotal([FromBody] Trolly trolly)
+        public decimal GetLowestTotal([FromBody] Trolly trolly)
         {
             var trollyString = JsonConvert.SerializeObject(trolly);
             _logger.LogError($"Trolly: {trollyString}");
@@ -39,11 +39,11 @@ namespace MasonAzureTest.Api
             return MatchSpecialInProducts(trolly.Specials, trolly.Quantities, trolly.Products);
         }
 
-        private long MatchSpecialInProducts(IEnumerable<Special> specials,
+        private decimal MatchSpecialInProducts(IEnumerable<Special> specials,
             IEnumerable<TrollyQuantity> quantities,
             IEnumerable<TrollyProduct> products)
         {
-            long total = 0;
+            decimal total = 0;
 
             var orderedSpecial = specials.OrderByDescending(s => s.Total);
 
